@@ -7,25 +7,46 @@ import type { Document, IFakeMongoReplica } from './types';
  * Run `npm test:replication` to test your implementation.
  */
 export class FakeMongoReplica implements IFakeMongoReplica {
-    // TODO: Implement
+    private primaryMongo: FakeMongoPrimary
+    private data = new Map<string, Map<string, Document>>();
 
     constructor(fakeMongoPrimary: FakeMongoPrimary) {
-        // TODO: Implement
+        this.primaryMongo = fakeMongoPrimary
+        fakeMongoPrimary.subscribeToChanges(this)
     }
 
     public async get(collection: string, documentId: string) {
-        // TODO: Implement
+        if (this.data.has(collection)) {
+            return this.data.get(collection)!.get(documentId)
+        }
+        console.error('Collection does not exist');
+        return
     }
 
     public async upsert(collection: string, document: Document) {
-        // TODO: Implement
+        await this.primaryMongo.upsert(collection, document)
     }
 
     public async delete(collection: string, documentId: string) {
-        // TODO: Implement
+        await this.primaryMongo.delete(collection, documentId)
     }
 
-    public handlePrimaryChanges(changes: { operation: 'UPSERT' | 'DELETE', collection: string, documentId: string, document?: Document}[]) {
-        // TODO: Implement
+    public handlePrimaryChanges(changes: { operation: 'UPSERT' | 'DELETE', collection: string, documentId: string, document?: Document }[]) {
+        changes.forEach(async change => {
+            if (change.operation === 'UPSERT') {
+                if (change.document) {
+                    if (!this.data.has(change.collection)) {
+                        this.data.set(change.collection, new Map());
+                    }
+
+                    this.data.get(change.collection)!.set(change.document._id, change.document);
+                }
+                return
+            }
+
+            if (this.data.has(change.collection)) {
+                this.data.get(change.collection)!.delete(change.documentId);
+            }
+        })
     }
 }
